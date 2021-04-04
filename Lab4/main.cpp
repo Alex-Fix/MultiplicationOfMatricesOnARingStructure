@@ -45,67 +45,67 @@ void run_process_7(char** fileNames);
 
 // prototypes
 char** load_settings();
-int ProcNum, ProcRank = 1;
+
 int main(int *argc, char **argv)
 {
 	char **fileNames = load_settings();
 
 	bool isReal = !strcmp(fileNames[0], "real");
 
-	//int ProcNum, ProcRank;
-	/*MPI_Init(argc, &argv);
+	int ProcNum, ProcRank;
+	MPI_Init(argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
-	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);*/
+	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
 	
 	switch (ProcRank) 
 	{
 	case 0:
-		if (!isReal)
-			run_process_0<int>(fileNames);
-		else
+		if (isReal)
 			run_process_0<double>(fileNames);
+		else
+			run_process_0<int>(fileNames);
 		break;
 	case 1:
-		if (!isReal)
-			run_process_1<int>(fileNames);
-		else
+		if (isReal)
 			run_process_1<double>(fileNames);
+		else
+			run_process_1<int>(fileNames);
 		break;
 	case 2:
-		if (!isReal)
-			run_process_2<int>(fileNames);
-		else
+		if (isReal)
 			run_process_2<double>(fileNames);
+		else
+			run_process_2<int>(fileNames);
 		break;
 	case 3:
-		if (!isReal)
-			run_process_3<int>(fileNames);
-		else
+		if (isReal)
 			run_process_3<double>(fileNames);
+		else
+			run_process_3<int>(fileNames);
 		break;
 	case 4:
-		if (!isReal)
-			run_process_4<int>(fileNames);
-		else
+		if (isReal)
 			run_process_4<double>(fileNames);
+		else
+			run_process_4<int>(fileNames);
 		break;
 	case 5:
-		if (!isReal)
-			run_process_5<int>(fileNames);
-		else
+		if (isReal)
 			run_process_5<double>(fileNames);
+		else
+			run_process_5<int>(fileNames);
 		break;
 	case 6:
-		if (!isReal)
-			run_process_6<int>(fileNames);
-		else
+		if (isReal)
 			run_process_6<double>(fileNames);
+		else
+			run_process_6<int>(fileNames);
 		break;
 	case 7:
-		if (!isReal)
-			run_process_7<int>(fileNames);
-		else
+		if (isReal)
 			run_process_7<double>(fileNames);
+		else
+			run_process_7<int>(fileNames);
 		break;
 	default:
 		break;
@@ -174,7 +174,6 @@ void read_part_of_matrix_from_file(const char* fileName, T** matrix, int height,
 
 	for (int i = 0, matrix_i = 0; i < height; i++) 
 	{
-		cout << "proc: " << ProcRank << " i: " << i << endl;
 		for (int j = 0, matrix_j = 0; j < width; j++)
 			if (i >= startIndexH && i <= endIndexH && j >= startIndexW && j <= endIndexW)
 				fin >> matrix[matrix_i][matrix_j++];
@@ -218,10 +217,10 @@ void run_process_0(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1, N3);
 
-	/*read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 0, 1 * N1 / 8 - 1, 0, N2 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 1, 0, MPI_COMM_WORLD);*/
-	//read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 0, 1 * N3 / 8 - 1);
-	//MPI_Send(goFlag, 1, MPI_CHAR, 1, 1, MPI_COMM_WORLD);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 0, 1 * (N1 / 8) - 1, 0, N2 - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 1, 0, MPI_COMM_WORLD);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 0, 1 * (N3 / 8) - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 1, 1, MPI_COMM_WORLD);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
@@ -239,12 +238,12 @@ void run_process_1(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1/8, N3/8);
 
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 1 * N1 / 8, 2 * N1 / 8 - 1, 0, N2 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 2, 0, MPI_COMM_WORLD);*/
-	//MPI_Recv(goFlag, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 1 * N3 / 8, 2 * N3 / 8 - 1);
-	//MPI_Send(goFlag, 1, MPI_CHAR, 2, 1, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 1 * (N1 / 8), 2 * (N1 / 8) - 1, 0, N2 - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 2, 0, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 1 * (N3 / 8), 2 * (N3 / 8) - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 2, 1, MPI_COMM_WORLD);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
@@ -262,12 +261,12 @@ void run_process_2(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1 / 8, N3 / 8);
 
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 1, 0, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 2 * N1 / 8, 3 * N1 / 8 - 1, 0, N2 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 3, 0, MPI_COMM_WORLD);*/
-	//MPI_Recv(goFlag, 1, MPI_CHAR, 1, 1, MPI_COMM_WORLD, &status);
-	//read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 2 * N3 / 8, 3 * N3 / 8 - 1);
-	//MPI_Send(goFlag, 1, MPI_CHAR, 3, 1, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 1, 0, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 2 * (N1 / 8), 3 * (N1 / 8) - 1, 0, N2 - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 3, 0, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 1, 1, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 2 * (N3 / 8), 3 * (N3 / 8) - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 3, 1, MPI_COMM_WORLD);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
@@ -285,12 +284,12 @@ void run_process_3(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1 / 8, N3 / 8);
 
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 2, 0, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 3 * N1 / 8, 4 * N1 / 8 - 1, 0, N2 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 4, 0, MPI_COMM_WORLD);*/
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 2, 1, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 3 * N3 / 8, 4 * N3 / 8 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 4, 1, MPI_COMM_WORLD);*/
+	MPI_Recv(goFlag, 1, MPI_CHAR, 2, 0, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 3 * (N1 / 8), 4 * (N1 / 8) - 1, 0, N2 - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 4, 0, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 2, 1, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 3 * (N3 / 8), 4 * (N3 / 8) - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 4, 1, MPI_COMM_WORLD);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
@@ -308,12 +307,12 @@ void run_process_4(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1 / 8, N3 / 8);
 
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 3, 0, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 4 * N1 / 8, 5 * N1 / 8 - 1, 0, N2 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 5, 0, MPI_COMM_WORLD);*/
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 3, 1, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 4 * N3 / 8, 5 * N3 / 8 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 5, 1, MPI_COMM_WORLD);*/
+	MPI_Recv(goFlag, 1, MPI_CHAR, 3, 0, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 4 * (N1 / 8), 5 * (N1 / 8) - 1, 0, N2 - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 5, 0, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 3, 1, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 4 * (N3 / 8), 5 * (N3 / 8) - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 5, 1, MPI_COMM_WORLD);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
@@ -331,12 +330,12 @@ void run_process_5(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1 / 8, N3 / 8);
 
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 4, 0, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 5 * N1 / 8, 6 * N1 / 8 - 1, 0, N2 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 6, 0, MPI_COMM_WORLD);*/
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 4, 1, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 5 * N3 / 8, 6 * N3 / 8 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD);*/
+	MPI_Recv(goFlag, 1, MPI_CHAR, 4, 0, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 5 * (N1 / 8), 6 * (N1 / 8) - 1, 0, N2 - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 6, 0, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 4, 1, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 5 * (N3 / 8), 6 * (N3 / 8) - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
@@ -354,12 +353,12 @@ void run_process_6(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1 / 8, N3 / 8);
 
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 5, 0, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 6 * N1 / 8, 7 * N1 / 8 - 1, 0, N2 - 1);
-	MPI_Send(goFlag, 1, MPI_CHAR, 7, 0, MPI_COMM_WORLD);*/
-	//MPI_Recv(goFlag, 1, MPI_CHAR, 5, 1, MPI_COMM_WORLD, &status);
-	//read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 6 * N3 / 8, 7 * N3 / 8 - 1);
-	//MPI_Send(goFlag, 1, MPI_CHAR, 7, 1, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 5, 0, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 6 * (N1 / 8), 7 * (N1 / 8) - 1, 0, N2 - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 7, 0, MPI_COMM_WORLD);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 5, 1, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 6 * (N3 / 8), 7 * (N3 / 8) - 1);
+	MPI_Send(goFlag, 1, MPI_CHAR, 7, 1, MPI_COMM_WORLD);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
@@ -377,10 +376,10 @@ void run_process_7(char** fileNames)
 	T** B = create_matrix<T>(N2, N3 / 8);
 	T** C = create_matrix<T>(N1 / 8, N3 / 8);
 
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 6, 0, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 7 * N1 / 8, N1 - 1, 0, N2 - 1);*/
-	/*MPI_Recv(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 7 * N3 / 8, N3 - 1);*/
+	MPI_Recv(goFlag, 1, MPI_CHAR, 6, 0, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 7 * (N1 / 8), N1 - 1, 0, N2 - 1);
+	MPI_Recv(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD, &status);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 7 * (N3 / 8), N3 / 8 - 1);
 
 	delete_matrix<T>(A, N1 / 8);
 	delete_matrix<T>(B, N2);
