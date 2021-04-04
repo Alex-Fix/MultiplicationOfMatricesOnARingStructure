@@ -21,6 +21,8 @@ void delete_matrix(T **&matrix, int height);
 template<typename T>
 void matrix_multiply(T** A, T** B, T** C, int n1, int n2, int n3);
 template<typename T>
+void part_of_matrix_multiply(T** A, T** B, T** C, int n1, int n2, int n3, int cStartH, int cStartW);
+template<typename T>
 void read_matrix_from_file(const char* fileName, T** matrix, int height, int width);
 template<typename T>
 void read_part_of_matrix_from_file(const char* fileName, T** matrix, int height, int width, int startIndexH, int endIndexH, int startIndexW, int endIndexW);
@@ -52,7 +54,7 @@ int main(int *argc, char **argv)
 
 	bool isReal = !strcmp(fileNames[0], "real");
 
-	int ProcNum, ProcRank;
+	int ProcNum, ProcRank = 0;
 	MPI_Init(argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
@@ -132,10 +134,31 @@ T** create_matrix(int height, int width)
 }
 
 template<typename T>
+T** create_allocated_matrix(int height, int width) {
+	T* data = new T[height * width];
+
+	for (int i = 0; i < height * width; i++)
+		data[i] = 0;
+
+	T** array = new T*[height];
+
+	for (int i = 0; i < height; i++)
+		array[i] = &(data[width * i]);
+
+	return array;
+}
+
+template<typename T>
 void delete_matrix(T** &matrix, int height)
 {
 	for (int i = 0; i < height; i++)
 		delete[] matrix[i];
+	delete[] matrix;
+}
+
+template<typename T>
+void delete_allocated_matrix(T** matrix, int height) {
+	delete[] matrix[0];
 	delete[] matrix;
 }
 
@@ -148,6 +171,18 @@ void matrix_multiply(T** A, T** B, T** C, int n1, int n2, int n3)
 			C[i][j] = 0;
 			for (int k = 0; k < n2; k++)
 				C[i][j] += A[i][k] * B[k][j];
+		}
+}
+
+template<typename T>
+void part_of_matrix_multiply(T** A, T** B, T** C, int n1, int n2, int n3, int cStartH, int cStartW)
+{
+	for (int i = 0, cI = cStartH; i < n1; i++, cI++)
+		for (int j = 0, cJ = cStartW; j < n3; j++, cJ++)
+		{
+			C[cI][cJ] = 0;
+			for (int k = 0; k < n2; k++)
+				C[cI][cJ] += A[i][k] * B[k][j];
 		}
 }
 
@@ -212,19 +247,34 @@ void run_process_0(char** fileNames)
 {
 	MPI_Status status;
 	char *goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1, N3);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1, N3);
 
-	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 0, 1 * (N1 / 8) - 1, 0, N2 - 1);
+	int sizeB = N2 * (N3 / 8);
+
+	read_part_of_matrix_from_file<T>(fileNames[1], B, N1, N2, 0, 1 * (N1 / 8) - 1, 0, N2 - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 1, 0, MPI_COMM_WORLD);
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 0, 1 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 1, 1, MPI_COMM_WORLD);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++) 
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 1, i+2, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 7, i, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i+1) * (N3 / 8));
+	}
+	
+	print_matrix_to_file("proc_0.txt", C, N1 / 8, N3 / 8);
+
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1);
 	delete goFlag;
 }
 
@@ -233,10 +283,13 @@ void run_process_1(char** fileNames)
 {
 	MPI_Status status;
 	char* goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1/8, N3/8);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1/8, N3);
+
+	int sizeB = N2 * (N3 / 8);
 
 	MPI_Recv(goFlag, 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 1 * (N1 / 8), 2 * (N1 / 8) - 1, 0, N2 - 1);
@@ -245,9 +298,21 @@ void run_process_1(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 1 * (N3 / 8), 2 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 2, 1, MPI_COMM_WORLD);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1/8);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++)
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 2, i + 2, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 0, i + 2, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
+	}
+
+	print_matrix_to_file("proc_1.txt", C, N1 / 8, N3 / 8);
+
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1/8);
 	delete goFlag;
 }
 
@@ -256,10 +321,13 @@ void run_process_2(char** fileNames)
 {
 	MPI_Status status;
 	char* goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1 / 8, N3 / 8);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1 / 8, N3);
+
+	int sizeB = N2 * (N3 / 8);
 
 	MPI_Recv(goFlag, 1, MPI_CHAR, 1, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 2 * (N1 / 8), 3 * (N1 / 8) - 1, 0, N2 - 1);
@@ -268,9 +336,21 @@ void run_process_2(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 2 * (N3 / 8), 3 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 3, 1, MPI_COMM_WORLD);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1 / 8);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++)
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 3, i + 2, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 1, i + 2, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
+	}
+
+	print_matrix_to_file("proc_2.txt", C, N1 / 8, N3 / 8);
+
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1 / 8);
 	delete goFlag;
 }
 
@@ -279,10 +359,13 @@ void run_process_3(char** fileNames)
 {
 	MPI_Status status;
 	char* goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1 / 8, N3 / 8);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1 / 8, N3);
+
+	int sizeB = N2 * (N3 / 8);
 
 	MPI_Recv(goFlag, 1, MPI_CHAR, 2, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 3 * (N1 / 8), 4 * (N1 / 8) - 1, 0, N2 - 1);
@@ -291,9 +374,21 @@ void run_process_3(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 3 * (N3 / 8), 4 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 4, 1, MPI_COMM_WORLD);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1 / 8);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++)
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 4, i + 2, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 2, i + 2, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
+	}
+
+	print_matrix_to_file("proc_3.txt", C, N1 / 8, N3 / 8);
+
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1 / 8);
 	delete goFlag;
 }
 
@@ -302,10 +397,13 @@ void run_process_4(char** fileNames)
 {
 	MPI_Status status;
 	char* goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1 / 8, N3 / 8);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1 / 8, N3);
+
+	int sizeB = N2 * (N3 / 8);
 
 	MPI_Recv(goFlag, 1, MPI_CHAR, 3, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 4 * (N1 / 8), 5 * (N1 / 8) - 1, 0, N2 - 1);
@@ -314,9 +412,21 @@ void run_process_4(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 4 * (N3 / 8), 5 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 5, 1, MPI_COMM_WORLD);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1 / 8);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++)
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 5, i + 2, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 3, i + 2, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
+	}
+
+	print_matrix_to_file("proc_4.txt", C, N1 / 8, N3 / 8);
+
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1 / 8);
 	delete goFlag;
 }
 
@@ -325,10 +435,13 @@ void run_process_5(char** fileNames)
 {
 	MPI_Status status;
 	char* goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1 / 8, N3 / 8);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1 / 8, N3);
+
+	int sizeB = N2 * (N3 / 8);
 
 	MPI_Recv(goFlag, 1, MPI_CHAR, 4, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 5 * (N1 / 8), 6 * (N1 / 8) - 1, 0, N2 - 1);
@@ -337,9 +450,21 @@ void run_process_5(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 5 * (N3 / 8), 6 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1 / 8);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++)
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 6, i + 2, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 4, i + 2, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
+	}
+
+	print_matrix_to_file("proc_5.txt", C, N1 / 8, N3 / 8);
+
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1 / 8);
 	delete goFlag;
 }
 
@@ -348,10 +473,13 @@ void run_process_6(char** fileNames)
 {
 	MPI_Status status;
 	char* goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1 / 8, N3 / 8);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1 / 8, N3);
+
+	int sizeB = N2 * (N3 / 8);
 
 	MPI_Recv(goFlag, 1, MPI_CHAR, 5, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 6 * (N1 / 8), 7 * (N1 / 8) - 1, 0, N2 - 1);
@@ -360,9 +488,21 @@ void run_process_6(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 6 * (N3 / 8), 7 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 7, 1, MPI_COMM_WORLD);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1 / 8);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++)
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 7, i + 2, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 5, i + 2, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
+	}
+
+	print_matrix_to_file("proc_6.txt", C, N1 / 8, N3 / 8);
+
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1 / 8);
 	delete goFlag;
 }
 
@@ -371,19 +511,34 @@ void run_process_7(char** fileNames)
 {
 	MPI_Status status;
 	char* goFlag = new char;
+	int dataType = typeid(T) == typeid(int) ? MPI_INT : MPI_DOUBLE;
 
-	T** A = create_matrix<T>(N1 / 8, N2);
-	T** B = create_matrix<T>(N2, N3 / 8);
-	T** C = create_matrix<T>(N1 / 8, N3 / 8);
+	T** A = create_allocated_matrix<T>(N1 / 8, N2);
+	T** B = create_allocated_matrix<T>(N2, N3 / 8);
+	T** C = create_allocated_matrix<T>(N1 / 8, N3);
+
+	int sizeB = N2 * (N3 / 8);
 
 	MPI_Recv(goFlag, 1, MPI_CHAR, 6, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 7 * (N1 / 8), N1 - 1, 0, N2 - 1);
 	MPI_Recv(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 7 * (N3 / 8), N3 / 8 - 1);
 
-	delete_matrix<T>(A, N1 / 8);
-	delete_matrix<T>(B, N2);
-	delete_matrix<T>(C, N1 / 8);
+	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
+
+	for (int i = 0; i < 7; i++)
+	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 0, i, MPI_COMM_WORLD);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 6, i + 2, MPI_COMM_WORLD, &status);
+
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
+	}
+
+	print_matrix_to_file("proc_7.txt", C, N1 / 8, N3 / 8);
+	
+	delete_allocated_matrix<T>(A, N1 / 8);
+	delete_allocated_matrix<T>(B, N2);
+	delete_allocated_matrix<T>(C, N1 / 8);
 	delete goFlag;
 }
 
