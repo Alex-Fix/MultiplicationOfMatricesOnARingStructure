@@ -3,6 +3,8 @@
 #include <fstream>
 #include <cstring>
 #include <typeinfo>
+#include <chrono>
+#include<utility>
 
 using namespace std;
 
@@ -11,7 +13,7 @@ using namespace std;
 #define N3 160
 #define SETTINGS_FILE_NAME "appsettings.txt"
 #define MAX_NAME_LENGTH 100
-#define SETTINGS_COUNT 4
+#define SETTINGS_COUNT 5
 
 // template prototypes
 template<typename T>
@@ -31,6 +33,8 @@ void print_matrix_to_file(const char* fileName, T** matrix, int height, int widt
 template<typename T>
 void move_chunk_to_matrix(T** C, T** Ctemp, int startIndexH, int endIndexH, int startIndexW, int endIndexW);
 template<typename T>
+void run_process_sync(char** fileNames);
+template<typename T>
 void run_process_0(char** fileNames);
 template<typename T>
 void run_process_1(char** fileNames);
@@ -49,75 +53,88 @@ void run_process_7(char** fileNames);
 
 // prototypes
 char** load_settings();
+void print_time(int procRank, long long nanoseconds, bool isSync);
 
 int main(int *argc, char **argv)
 {
 	char **fileNames = load_settings();
 
 	bool isReal = !strcmp(fileNames[0], "real");
-
-	int ProcNum, ProcRank;
-	MPI_Init(argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
-	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
+	bool isSync = !strcmp(fileNames[4], "sync");
 	
-	switch (ProcRank) 
+	if (isSync) 
 	{
-	case 0:
 		if (isReal)
-			run_process_0<double>(fileNames);
+			run_process_sync<double>(fileNames);
 		else
-			run_process_0<int>(fileNames);
-		break;
-	case 1:
-		if (isReal)
-			run_process_1<double>(fileNames);
-		else
-			run_process_1<int>(fileNames);
-		break;
-	case 2:
-		if (isReal)
-			run_process_2<double>(fileNames);
-		else
-			run_process_2<int>(fileNames);
-		break;
-	case 3:
-		if (isReal)
-			run_process_3<double>(fileNames);
-		else
-			run_process_3<int>(fileNames);
-		break;
-	case 4:
-		if (isReal)
-			run_process_4<double>(fileNames);
-		else
-			run_process_4<int>(fileNames);
-		break;
-	case 5:
-		if (isReal)
-			run_process_5<double>(fileNames);
-		else
-			run_process_5<int>(fileNames);
-		break;
-	case 6:
-		if (isReal)
-			run_process_6<double>(fileNames);
-		else
-			run_process_6<int>(fileNames);
-		break;
-	case 7:
-		if (isReal)
-			run_process_7<double>(fileNames);
-		else
-			run_process_7<int>(fileNames);
-		break;
-	default:
-		break;
+			run_process_sync<int>(fileNames);
 	}
+	else 
+	{
+		int ProcNum, ProcRank = 0;
+		MPI_Init(argc, &argv);
+		MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
+		MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
 
-	MPI_Finalize();
+		switch (ProcRank)
+		{
+		case 0:
+			if (isReal)
+				run_process_0<double>(fileNames);
+			else
+				run_process_0<int>(fileNames);
+			break;
+		case 1:
+			if (isReal)
+				run_process_1<double>(fileNames);
+			else
+				run_process_1<int>(fileNames);
+			break;
+		case 2:
+			if (isReal)
+				run_process_2<double>(fileNames);
+			else
+				run_process_2<int>(fileNames);
+			break;
+		case 3:
+			if (isReal)
+				run_process_3<double>(fileNames);
+			else
+				run_process_3<int>(fileNames);
+			break;
+		case 4:
+			if (isReal)
+				run_process_4<double>(fileNames);
+			else
+				run_process_4<int>(fileNames);
+			break;
+		case 5:
+			if (isReal)
+				run_process_5<double>(fileNames);
+			else
+				run_process_5<int>(fileNames);
+			break;
+		case 6:
+			if (isReal)
+				run_process_6<double>(fileNames);
+			else
+				run_process_6<int>(fileNames);
+			break;
+		case 7:
+			if (isReal)
+				run_process_7<double>(fileNames);
+			else
+				run_process_7<int>(fileNames);
+			break;
+		default:
+			break;
+		}
 
+		MPI_Finalize();
+	}
+	
 	delete_matrix(fileNames, SETTINGS_COUNT);
+
 	return 0;
 }
 
@@ -245,6 +262,30 @@ void print_matrix_to_file(const char* fileName, T** matrix, int height, int widt
 }
 
 template<typename T>
+void run_process_sync(char** fileNames)
+{
+	T** A = create_matrix<T>(N1, N2);
+	T** B = create_matrix<T>(N2, N3);
+	T** C = create_matrix<T>(N1, N3);
+
+	read_matrix_from_file(fileNames[1], A, N1, N2);
+	read_matrix_from_file(fileNames[2], B, N2, N3);
+
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
+
+	matrix_multiply(A, B, C, N1, N2, N3);
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(0, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), true);
+
+	print_matrix_to_file(fileNames[3], C, N1, N3);
+
+	delete_matrix(A, N1);
+	delete_matrix(B, N2);
+	delete_matrix(C, N1);
+}
+
+template<typename T>
 void move_chunk_to_matrix(T** C, T** Ctemp, int startIndexH, int endIndexH, int startIndexW, int endIndexW) 
 {
 	for (int i = startIndexH, tempI = 0; i <= endIndexH; i++, tempI++)
@@ -271,6 +312,8 @@ void run_process_0(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 0, 1 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 1, 1, MPI_COMM_WORLD);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
+
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -281,6 +324,9 @@ void run_process_0(char** fileNames)
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, (i+1) * (N1/8), 0);
 	}
 	
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(0, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
+
 	print_matrix_to_file("proc_0.txt", C, N1 / 8, N3 / 8);
 
 	for (int i = 1; i < 8; i++) {
@@ -317,6 +363,7 @@ void run_process_1(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 1 * (N3 / 8), 2 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 2, 1, MPI_COMM_WORLD);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -326,6 +373,9 @@ void run_process_1(char** fileNames)
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(1, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
 
 	print_matrix_to_file("proc_1.txt", C, N1 / 8, N3 / 8);
 
@@ -357,6 +407,7 @@ void run_process_2(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 2 * (N3 / 8), 3 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 3, 1, MPI_COMM_WORLD);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -366,6 +417,9 @@ void run_process_2(char** fileNames)
 		
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(2, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
 
 	print_matrix_to_file("proc_2.txt", C, N1 / 8, N3 / 8);
 
@@ -397,6 +451,7 @@ void run_process_3(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 3 * (N3 / 8), 4 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 4, 1, MPI_COMM_WORLD);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -406,6 +461,9 @@ void run_process_3(char** fileNames)
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(3, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
 
 	print_matrix_to_file("proc_3.txt", C, N1 / 8, N3 / 8);
 
@@ -437,6 +495,7 @@ void run_process_4(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 4 * (N3 / 8), 5 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 5, 1, MPI_COMM_WORLD);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -446,6 +505,9 @@ void run_process_4(char** fileNames)
 		
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(4, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
 
 	print_matrix_to_file("proc_4.txt", C, N1 / 8, N3 / 8);
 
@@ -477,6 +539,7 @@ void run_process_5(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 5 * (N3 / 8), 6 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -486,6 +549,9 @@ void run_process_5(char** fileNames)
 		
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(5, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
 
 	print_matrix_to_file("proc_5.txt", C, N1 / 8, N3 / 8);
 
@@ -517,6 +583,7 @@ void run_process_6(char** fileNames)
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 6 * (N3 / 8), 7 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 7, 1, MPI_COMM_WORLD);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -526,6 +593,9 @@ void run_process_6(char** fileNames)
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(6, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
 
 	print_matrix_to_file("proc_6.txt", C, N1 / 8, N3 / 8);
 
@@ -555,6 +625,7 @@ void run_process_7(char** fileNames)
 	MPI_Recv(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 7 * (N3 / 8), N3 - 1);
 
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
 	for (int i = 0; i < 7; i++)
@@ -564,6 +635,9 @@ void run_process_7(char** fileNames)
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
+
+	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
+	print_time(7, chrono::duration_cast<chrono::nanoseconds>(end - start).count(), false);
 
 	print_matrix_to_file("proc_7.txt", C, N1 / 8, N3 / 8);
 
@@ -587,4 +661,15 @@ char** load_settings()
 	fin.close();
 
 	return fileNames;
+}
+
+void print_time(int procRank, long long nanoseconds, bool isSync) {
+	
+	if (isSync)
+	{
+		cout << "The program worked in synchronous mode. Total execution time: " << nanoseconds << " ns. or " << nanoseconds / 1000000 << " ms." << endl;
+		return;
+	}
+
+	cout << "The program worked in parallel. Process #"<< procRank << ". Total execution time: " << nanoseconds << " ns. or " << nanoseconds / 1000000 << " ms." << endl;
 }
