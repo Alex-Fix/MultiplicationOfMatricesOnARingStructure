@@ -8,7 +8,7 @@ using namespace std;
 
 #define N1 960
 #define N2 768
-#define N3 159
+#define N3 160
 #define SETTINGS_FILE_NAME "appsettings.txt"
 #define MAX_NAME_LENGTH 100
 #define SETTINGS_COUNT 4
@@ -54,7 +54,7 @@ int main(int *argc, char **argv)
 
 	bool isReal = !strcmp(fileNames[0], "real");
 
-	int ProcNum, ProcRank = 0;
+	int ProcNum, ProcRank;
 	MPI_Init(argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
@@ -255,20 +255,18 @@ void run_process_0(char** fileNames)
 
 	int sizeB = N2 * (N3 / 8);
 
-	read_part_of_matrix_from_file<T>(fileNames[1], B, N1, N2, 0, 1 * (N1 / 8) - 1, 0, N2 - 1);
+	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 0, 1 * (N1 / 8) - 1, 0, N2 - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 1, 0, MPI_COMM_WORLD);
 	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 0, 1 * (N3 / 8) - 1);
 	MPI_Send(goFlag, 1, MPI_CHAR, 1, 1, MPI_COMM_WORLD);
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag = 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
+		MPI_Send(&(B[0][0]), sizeB, dataType, 1, i + 2, MPI_COMM_WORLD);
 		MPI_Recv(&(B[0][0]), sizeB, dataType, 7, i, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 7, syncTag, MPI_COMM_WORLD);
-		MPI_Send(&(B[0][0]), sizeB, dataType, 1, i+2, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 1, syncTag, MPI_COMM_WORLD, &status);
-
+		
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i+1) * (N3 / 8));
 	}
 	
@@ -302,12 +300,10 @@ void run_process_1(char** fileNames)
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag = 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
-		MPI_Recv(&(B[0][0]), sizeB, dataType, 0, i + 2, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 0, syncTag, MPI_COMM_WORLD);
 		MPI_Send(&(B[0][0]), sizeB, dataType, 2, i + 2, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 2, syncTag, MPI_COMM_WORLD, &status);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 0, i + 2, MPI_COMM_WORLD, &status);
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
@@ -342,13 +338,11 @@ void run_process_2(char** fileNames)
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag= 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
-		MPI_Recv(&(B[0][0]), sizeB, dataType, 1, i + 2, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 1, syncTag, MPI_COMM_WORLD);
 		MPI_Send(&(B[0][0]), sizeB, dataType, 3, i + 2, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 3, syncTag, MPI_COMM_WORLD, &status);
-
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 1, i + 2, MPI_COMM_WORLD, &status);
+		
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
 
@@ -382,12 +376,10 @@ void run_process_3(char** fileNames)
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag= 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
-		MPI_Recv(&(B[0][0]), sizeB, dataType, 2, i + 2, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 2, syncTag, MPI_COMM_WORLD);
 		MPI_Send(&(B[0][0]), sizeB, dataType, 4, i + 2, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 4, syncTag, MPI_COMM_WORLD, &status);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 2, i + 2, MPI_COMM_WORLD, &status);
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
@@ -422,12 +414,10 @@ void run_process_4(char** fileNames)
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag = 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
-		MPI_Recv(&(B[0][0]), sizeB, dataType, 3, i + 2, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 3, syncTag, MPI_COMM_WORLD);
 		MPI_Send(&(B[0][0]), sizeB, dataType, 5, i + 2, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 5, syncTag, MPI_COMM_WORLD, &status);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 3, i + 2, MPI_COMM_WORLD, &status);
 		
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
@@ -462,12 +452,10 @@ void run_process_5(char** fileNames)
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag = 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
-		MPI_Recv(&(B[0][0]), sizeB, dataType, 4, i + 2, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 4, syncTag, MPI_COMM_WORLD);
 		MPI_Send(&(B[0][0]), sizeB, dataType, 6, i + 2, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 6, syncTag, MPI_COMM_WORLD, &status);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 4, i + 2, MPI_COMM_WORLD, &status);
 		
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
@@ -502,12 +490,10 @@ void run_process_6(char** fileNames)
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag = 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
-		MPI_Recv(&(B[0][0]), sizeB, dataType, 5, i + 2, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 5, syncTag, MPI_COMM_WORLD);
 		MPI_Send(&(B[0][0]), sizeB, dataType, 7, i + 2, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 7, syncTag, MPI_COMM_WORLD, &status);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 5, i + 2, MPI_COMM_WORLD, &status);
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}
@@ -536,16 +522,14 @@ void run_process_7(char** fileNames)
 	MPI_Recv(goFlag, 1, MPI_CHAR, 6, 0, MPI_COMM_WORLD, &status);
 	read_part_of_matrix_from_file<T>(fileNames[1], A, N1, N2, 7 * (N1 / 8), N1 - 1, 0, N2 - 1);
 	MPI_Recv(goFlag, 1, MPI_CHAR, 6, 1, MPI_COMM_WORLD, &status);
-	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 7 * (N3 / 8), N3 / 8 - 1);
+	read_part_of_matrix_from_file<T>(fileNames[2], B, N2, N3, 0, N2 - 1, 7 * (N3 / 8), N3 - 1);
 
 	part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, 0);
 
-	for (int i = 0, syncTag = 100; i < 7; i++, syncTag++)
+	for (int i = 0; i < 7; i++)
 	{
-		MPI_Recv(&(B[0][0]), sizeB, dataType, 6, i + 2, MPI_COMM_WORLD, &status);
-		MPI_Send(goFlag, MPI_CHAR, 1, 6, syncTag, MPI_COMM_WORLD);
 		MPI_Send(&(B[0][0]), sizeB, dataType, 0, i, MPI_COMM_WORLD);
-		MPI_Recv(goFlag, 1, MPI_CHAR, 0, syncTag, MPI_COMM_WORLD, &status);
+		MPI_Recv(&(B[0][0]), sizeB, dataType, 6, i + 2, MPI_COMM_WORLD, &status);
 
 		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i + 1) * (N3 / 8));
 	}

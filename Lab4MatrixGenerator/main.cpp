@@ -5,7 +5,7 @@ using namespace std;
 
 #define N1 960
 #define N2 768
-#define N3 159
+#define N3 160
 
 void generate_matrixes();
 void generate_matrix(const char* fileName, int height, int width, bool isDefaultValue, int defaultValue, bool isRandomValue, bool isReal, int randomMin, int randomMax);
