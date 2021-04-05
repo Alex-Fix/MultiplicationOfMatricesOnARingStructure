@@ -29,6 +29,8 @@ void read_part_of_matrix_from_file(const char* fileName, T** matrix, int height,
 template<typename T>
 void print_matrix_to_file(const char* fileName, T** matrix, int height, int width);
 template<typename T>
+void move_chunk_to_matrix(T** C, T** Ctemp, int startIndexH, int endIndexH, int startIndexW, int endIndexW);
+template<typename T>
 void run_process_0(char** fileNames);
 template<typename T>
 void run_process_1(char** fileNames);
@@ -243,6 +245,14 @@ void print_matrix_to_file(const char* fileName, T** matrix, int height, int widt
 }
 
 template<typename T>
+void move_chunk_to_matrix(T** C, T** Ctemp, int startIndexH, int endIndexH, int startIndexW, int endIndexW) 
+{
+	for (int i = startIndexH, tempI = 0; i <= endIndexH; i++, tempI++)
+		for (int j = startIndexW, tempJ = 0; j <= endIndexW; j++, tempJ++)
+			C[i][j] = Ctemp[tempI][tempJ];
+}
+
+template<typename T>
 void run_process_0(char** fileNames)
 {
 	MPI_Status status;
@@ -252,6 +262,7 @@ void run_process_0(char** fileNames)
 	T** A = create_allocated_matrix<T>(N1 / 8, N2);
 	T** B = create_allocated_matrix<T>(N2, N3 / 8);
 	T** C = create_allocated_matrix<T>(N1, N3);
+	T** Ctemp = create_allocated_matrix<T>(N1, N3 / 8);
 
 	int sizeB = N2 * (N3 / 8);
 
@@ -267,14 +278,22 @@ void run_process_0(char** fileNames)
 		MPI_Send(&(B[0][0]), sizeB, dataType, 1, i + 2, MPI_COMM_WORLD);
 		MPI_Recv(&(B[0][0]), sizeB, dataType, 7, i, MPI_COMM_WORLD, &status);
 		
-		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, 0, (i+1) * (N3 / 8));
+		part_of_matrix_multiply(A, B, C, N1 / 8, N2, N3 / 8, (i+1) * (N1/8), 0);
 	}
 	
 	print_matrix_to_file("proc_0.txt", C, N1 / 8, N3 / 8);
 
+	for (int i = 1; i < 8; i++) {
+		MPI_Recv(&(Ctemp[0][0]), N1 * (N3 / 8), dataType, i, 200, MPI_COMM_WORLD, &status);
+		move_chunk_to_matrix<T>(C, Ctemp, 0, N1 - 1, i * (N3 / 8), (i+1) * (N3 / 8) - 1);
+	}
+	
+	print_matrix_to_file(fileNames[3], C, N1, N3);
+
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
 	delete_allocated_matrix<T>(C, N1);
+	delete_allocated_matrix<T>(Ctemp, N1);
 	delete goFlag;
 }
 
@@ -309,6 +328,8 @@ void run_process_1(char** fileNames)
 	}
 
 	print_matrix_to_file("proc_1.txt", C, N1 / 8, N3 / 8);
+
+	MPI_Send(&(C[0][0]), (N1 / 8) * N3, dataType, 0, 200, MPI_COMM_WORLD);
 
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
@@ -348,6 +369,8 @@ void run_process_2(char** fileNames)
 
 	print_matrix_to_file("proc_2.txt", C, N1 / 8, N3 / 8);
 
+	MPI_Send(&(C[0][0]), (N1 / 8) * N3, dataType, 0, 200, MPI_COMM_WORLD);
+
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
 	delete_allocated_matrix<T>(C, N1 / 8);
@@ -385,6 +408,8 @@ void run_process_3(char** fileNames)
 	}
 
 	print_matrix_to_file("proc_3.txt", C, N1 / 8, N3 / 8);
+
+	MPI_Send(&(C[0][0]), (N1 / 8) * N3, dataType, 0, 200, MPI_COMM_WORLD);
 
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
@@ -424,6 +449,8 @@ void run_process_4(char** fileNames)
 
 	print_matrix_to_file("proc_4.txt", C, N1 / 8, N3 / 8);
 
+	MPI_Send(&(C[0][0]), (N1 / 8) * N3, dataType, 0, 200, MPI_COMM_WORLD);
+
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
 	delete_allocated_matrix<T>(C, N1 / 8);
@@ -461,6 +488,8 @@ void run_process_5(char** fileNames)
 	}
 
 	print_matrix_to_file("proc_5.txt", C, N1 / 8, N3 / 8);
+
+	MPI_Send(&(C[0][0]), (N1 / 8) * N3, dataType, 0, 200, MPI_COMM_WORLD);
 
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
@@ -500,6 +529,8 @@ void run_process_6(char** fileNames)
 
 	print_matrix_to_file("proc_6.txt", C, N1 / 8, N3 / 8);
 
+	MPI_Send(&(C[0][0]), (N1 / 8) * N3, dataType, 0, 200, MPI_COMM_WORLD);
+
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
 	delete_allocated_matrix<T>(C, N1 / 8);
@@ -535,7 +566,9 @@ void run_process_7(char** fileNames)
 	}
 
 	print_matrix_to_file("proc_7.txt", C, N1 / 8, N3 / 8);
-	
+
+	MPI_Send(&(C[0][0]), (N1 / 8) * N3, dataType, 0, 200, MPI_COMM_WORLD);
+
 	delete_allocated_matrix<T>(A, N1 / 8);
 	delete_allocated_matrix<T>(B, N2);
 	delete_allocated_matrix<T>(C, N1 / 8);
